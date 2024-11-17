@@ -393,22 +393,24 @@ def _tensor_matrix_multiply(
     # row of matrix A and col of matrix B
     inner_dimension_size = a_shape[2]
 
-    # Parallel outer loop
+    # Outer loop in parallel
     for batch in prange(batch_size):
-        for row in prange(row_size):
-            for col in prange(col_size):
+        a_batch_offset = batch * a_batch_stride
+        b_batch_offset = batch * b_batch_stride
+        # All inner loops should have no global writes, 1 multiply.
+        for row in range(row_size):
+            # Get the positions of the starting elements in the storage arrays
+            row_offset_a = row * a_strides[1] + a_batch_offset
+            for col in range(col_size):
                 # Get the positions of the starting elements in the storage arrays
-                a_pos = batch * a_batch_stride + row * a_strides[1]
-                b_pos = batch * b_batch_stride + col * b_strides[2]
-                
+                col_offset_b = col * b_strides[2] + b_batch_offset
                 # initialize the accumulator of products of elements in
                 # the row of matrix A and the column of matrix B
                 accumulator = 0.0
-                # Inner loop should have no global writes, 1 multiply.
-                for _ in range(inner_dimension_size):
+                for i in range(inner_dimension_size):
+                    a_pos = i * a_strides[2] + row_offset_a
+                    b_pos = i * b_strides[1] + col_offset_b
                     accumulator += a_storage[a_pos] * b_storage[b_pos]
-                    a_pos += a_strides[2]
-                    b_pos += b_strides[1]
                 
                 # Calculate output position (i,j,k) of the current element in the output array
                 out_pos = batch * out_strides[0] + row * out_strides[1] + col * out_strides[2]
