@@ -34,8 +34,9 @@ The files that will be synced are:
 
 
 
-# Diagnostics Output from Task 3_1 (tensor_map, tensor_zip, and tensor_reduce):
-(.venv) (.venv) (base) zhufangyu@Zhus-MacBook-Pro mod3-fangyuzhu1101 % python project/parallel_check.py
+# Diagnostics Output (Parallel Analytics Script) from Task 3_1 (tensor_map, tensor_zip, and tensor_reduce):
+```
+(.venv) (.venv) (base) zhufangyu@dhcp-vl2051-1069 mod3-fangyuzhu1101 % python project/parallel_check.py
 MAP
 OMP: Info #276: omp_set_nested routine deprecated, please use omp_set_max_active_levels instead.
  
@@ -270,10 +271,11 @@ loop is executed and reused inside the loop):
    Allocation:: out_index: Index = np.empty(MAX_DIMS, dtype=np.int32)
     - numpy.empty() is used for the allocation.
 None
+```
 
 
-
-# Diagnostics Output from Task 3_2 (_tensor_matrix_multiply):
+# Diagnostics Output (Parallel Analytics Script) from Task 3_2 (_tensor_matrix_multiply):
+```
 MATRIX MULTIPLY
  
 ================================================================================
@@ -339,56 +341,37 @@ def _tensor_matrix_multiply(                                                    
     # row of matrix A and col of matrix B                                                         | 
     inner_dimension_size = a_shape[2]                                                             | 
                                                                                                   | 
-    # Parallel outer loop                                                                         | 
-    for batch in prange(batch_size):--------------------------------------------------------------| #13
-        for row in prange(row_size):--------------------------------------------------------------| #12
-            for col in prange(col_size):----------------------------------------------------------| #11
+    # Outer loop in parallel                                                                      | 
+    for batch in prange(batch_size):--------------------------------------------------------------| #11
+        a_batch_offset = batch * a_batch_stride                                                   | 
+        b_batch_offset = batch * b_batch_stride                                                   | 
+        # All inner loops should have no global writes, 1 multiply.                               | 
+        for row in range(row_size):                                                               | 
+            # Get the positions of the starting elements in the storage arrays                    | 
+            row_offset_a = row * a_strides[1] + a_batch_offset                                    | 
+            for col in range(col_size):                                                           | 
                 # Get the positions of the starting elements in the storage arrays                | 
-                a_pos = batch * a_batch_stride + row * a_strides[1]                               | 
-                b_pos = batch * b_batch_stride + col * b_strides[2]                               | 
-                                                                                                  | 
+                col_offset_b = col * b_strides[2] + b_batch_offset                                | 
                 # initialize the accumulator of products of elements in                           | 
                 # the row of matrix A and the column of matrix B                                  | 
                 accumulator = 0.0                                                                 | 
-                # Inner loop should have no global writes, 1 multiply.                            | 
-                for _ in range(inner_dimension_size):                                             | 
+                for i in range(inner_dimension_size):                                             | 
+                    a_pos = i * a_strides[2] + row_offset_a                                       | 
+                    b_pos = i * b_strides[1] + col_offset_b                                       | 
                     accumulator += a_storage[a_pos] * b_storage[b_pos]                            | 
-                    a_pos += a_strides[2]                                                         | 
-                    b_pos += b_strides[1]                                                         | 
                                                                                                   | 
                 # Calculate output position (i,j,k) of the current element in the output array    | 
                 out_pos = batch * out_strides[0] + row * out_strides[1] + col * out_strides[2]    | 
                 out[out_pos] = accumulator                                                        | 
 --------------------------------- Fusing loops ---------------------------------
 Attempting fusion of parallel loops (combines loops with similar properties)...
-Following the attempted fusion of parallel for-loops there are 2 parallel for-
-loop(s) (originating from loops labelled: #13, #12).
---------------------------------------------------------------------------------
----------------------------- Optimising loop nests -----------------------------
-Attempting loop nest rewrites (optimising for the largest parallel loops)...
- 
-+--13 is a parallel loop
-   +--12 --> rewritten as a serial loop
-      +--11 --> rewritten as a serial loop
+Following the attempted fusion of parallel for-loops there are 1 parallel for-
+loop(s) (originating from loops labelled: #11).
 --------------------------------------------------------------------------------
 ----------------------------- Before Optimisation ------------------------------
-Parallel region 0:
-+--13 (parallel)
-   +--12 (parallel)
-      +--11 (parallel)
-
-
 --------------------------------------------------------------------------------
 ------------------------------ After Optimisation ------------------------------
-Parallel region 0:
-+--13 (parallel)
-   +--12 (serial)
-      +--11 (serial)
-
-
- 
-Parallel region 0 (loop #13) had 0 loop(s) fused and 2 loop(s) serialized as 
-part of the larger parallel loop (#13).
+Parallel structure is already optimal.
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
  
@@ -396,3 +379,90 @@ part of the larger parallel loop (#13).
 Allocation hoisting:
 No allocation hoisting found
 None
+```
+
+# Training Log Results / Scripts for Task 3_5 for SMALL Model:
+## Dataset: Simple
+### CPU
+```bash
+!python project/run_fast_tensor.py --BACKEND cpu --HIDDEN 100 --DATASET simple --RATE 0.05
+```
+Total time:  xxxx Time per epoch:  xxxx
+```
+
+```
+
+### GPU
+```bash
+!python project/run_fast_tensor.py --BACKEND gpu --HIDDEN 100 --DATASET simple --RATE 0.05
+```
+Total time:  xxxx Time per epoch:  xxxx
+```
+
+```
+
+
+
+## Dataset: Split
+### CPU
+```bash
+!python project/run_fast_tensor.py --BACKEND cpu --HIDDEN 150 --DATASET split --RATE 0.05
+```
+Total time:  xxxx Time per epoch:  xxxx
+```
+
+```
+
+### GPU
+```bash
+!python project/run_fast_tensor.py --BACKEND gpu --HIDDEN 150 --DATASET split --RATE 0.05
+```
+Total time:  xxxx Time per epoch:  xxxx
+```
+
+```
+
+
+
+## Dataset: XOR
+### CPU
+```bash
+!python project/run_fast_tensor.py --BACKEND cpu --HIDDEN 200 --DATASET xor --RATE 0.05
+```
+Total time:  xxxx Time per epoch:  xxxx
+```
+
+```
+
+### GPU
+```bash
+!python project/run_fast_tensor.py --BACKEND gpu --HIDDEN 200 --DATASET xor --RATE 0.05
+```
+
+Total time:  xxxx Time per epoch:  xxxx
+```
+
+```
+
+
+
+
+# Training Log Results / Scripts for Task 3_5 for BIG Model:
+## Dataset: XXXX
+### CPU
+```bash
+!python project/run_fast_tensor.py --BACKEND cpu --HIDDEN 100 --DATASET simple --RATE 0.05
+```
+Total time:  xxxx Time per epoch:  xxxx
+```
+
+```
+
+### GPU
+```bash
+!python project/run_fast_tensor.py --BACKEND gpu --HIDDEN 100 --DATASET simple --RATE 0.05
+```
+Total time:  xxxx Time per epoch:  xxxx
+```
+
+```
