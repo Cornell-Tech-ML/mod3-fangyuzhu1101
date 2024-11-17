@@ -169,9 +169,37 @@ def tensor_map(
         in_strides: Strides,
     ) -> None:
         # TODO: Implement for Task 3.1.
-        raise NotImplementedError("Need to implement for Task 3.1")
+        # raise NotImplementedError("Need to implement for Task 3.1")
 
-    return njit(_map, parallel=True)  # type: ignore
+        # Check both stride alignment and equal shapes to avoid explicit indexing  
+        if (
+            len(out_strides) == len(in_strides)
+            and (out_strides == in_strides).all()
+            and (out_shape == in_shape).all()
+        ):
+            # Using prange for parallel loop; The main loop iterates over the output 
+            # tensor indices in parallel, utilizing prange to allow for parallel execution 
+            for i in prange(len(out)):
+                out[i] = fn(in_storage[i])
+        # else if not stride-aligned, index explicitly; run loop in parallel
+        else:
+            # Loop through all elements in the ordinal array (1d)
+            for i in prange(len(out)):
+                # Initialize all indices using numpy buffers
+                out_index: Index = np.empty(MAX_DIMS, np.int32)
+                in_index: Index = np.empty(MAX_DIMS, np.int32)
+                # Convert an `ordinal` to an index in the `shape`
+                to_index(i, out_shape, out_index)
+                # Broadcast indices from out_shape to in_shape
+                broadcast_index(out_index, out_shape, in_shape, in_index)
+                # Converts a multidimensional tensor `index` into a single-dimensional
+                # position in storage based on out_strides and in_strides
+                out_pos = index_to_position(out_index, out_strides)
+                in_pos = index_to_position(in_index, in_strides)
+                # Apply fn to input value and store result in the output array
+                out[out_pos] = fn(in_storage[in_pos])
+
+    return njit(_map, parallel=True)    # type: ignore
 
 
 def tensor_zip(
@@ -209,9 +237,48 @@ def tensor_zip(
         b_strides: Strides,
     ) -> None:
         # TODO: Implement for Task 3.1.
-        raise NotImplementedError("Need to implement for Task 3.1")
+        # raise NotImplementedError("Need to implement for Task 3.1")
 
-    return njit(_zip, parallel=True)  # type: ignore
+        # Check both stride alignment and equal shapes to avoid explicit indexing
+        if (
+            len(out_strides) == len(a_strides)
+            and len(out_strides) == len(b_strides)
+            and (out_strides == a_strides).all()
+            and (out_strides == b_strides).all()
+            and (out_shape == a_shape).all()
+            and (out_shape == b_shape).all()
+        ):
+            # Using prange for parallel loop; The main loop iterates over the output 
+            # tensor indices in parallel, utilizing prange to allow for parallel execution 
+            for i in prange(len(out)):
+                out[i] = fn(a_storage[i], b_storage[i])
+        # else if not stride-aligned, index explicitly; run loop in parallel
+        else:
+            # Loop through all elements in the ordinal array (1d)
+            for i in prange(len(out)):
+                # Initialize all indices using numpy buffers
+                out_index: Index = np.empty(MAX_DIMS, np.int32)
+                a_index: Index = np.empty(MAX_DIMS, np.int32)
+                b_index: Index = np.empty(MAX_DIMS, np.int32)
+                # Convert an `ordinal` to an index in the `shape`
+                to_index(i, out_shape, out_index)
+                # Converts a multidimensional tensor `index` into a 
+                # single-dimensional position in storage based on out_strides
+                out_pos = index_to_position(out_index, out_strides)
+                # Broadcast indices from out_shape to a_shape
+                broadcast_index(out_index, out_shape, a_shape, a_index)
+                # Converts a multidimensional tensor `index` into a 
+                # single-dimensional position in storage based on a_strides
+                a_pos = index_to_position(a_index, a_strides)
+                # Broadcast indices from out_shape to b_shape
+                broadcast_index(out_index, out_shape, b_shape, b_index)
+                # Converts a multidimensional tensor `index` into a 
+                # single-dimensional position in storage based on b_strides
+                b_pos = index_to_position(b_index, b_strides)
+                # Apply fn to input value and store result in the output array
+                out[out_pos] = fn(a_storage[a_pos], b_storage[b_pos])
+
+    return njit(_zip, parallel=True)    # type: ignore
 
 
 def tensor_reduce(
@@ -245,9 +312,30 @@ def tensor_reduce(
         reduce_dim: int,
     ) -> None:
         # TODO: Implement for Task 3.1.
-        raise NotImplementedError("Need to implement for Task 3.1")
+        # raise NotImplementedError("Need to implement for Task 3.1")
 
-    return njit(_reduce, parallel=True)  # type: ignore
+        # Initialize the index for the output tensor
+        # Loop through all elements in the ordinal array (1d)
+        for i in prange(len(out)):
+            # Initialize all indices using numpy buffers
+            out_index: Index = np.empty(MAX_DIMS, dtype=np.int32)
+            reduce_size = a_shape[reduce_dim]
+            # Convert an `ordinal` to an index in the `shape`
+            to_index(i, out_shape, out_index)
+            # Converts a multidimensional tensor `index` into a single-dimensional
+            # position in storage based on out_strides and a_strides
+            out_pos = index_to_position(out_index, out_strides)
+            a_pos = index_to_position(out_index, a_strides)
+            accumulator = out[out_pos]
+            a_step = a_strides[reduce_dim]
+            # Inner-loop should not call any external functions or write non-local variables
+            for _ in range(reduce_size):
+                # call fn normally inside the inner loop
+                accumulator = fn(accumulator, a_storage[a_pos])
+                a_pos += a_step
+            out[out_pos] = accumulator
+
+    return njit(_reduce, parallel=True)    # type: ignore
 
 
 def _tensor_matrix_multiply(
@@ -293,12 +381,37 @@ def _tensor_matrix_multiply(
         None : Fills in `out`
 
     """
+    assert a_shape[-1] == b_shape[-2]
     a_batch_stride = a_strides[0] if a_shape[0] > 1 else 0
     b_batch_stride = b_strides[0] if b_shape[0] > 1 else 0
-
     # TODO: Implement for Task 3.2.
-    raise NotImplementedError("Need to implement for Task 3.2")
+    # raise NotImplementedError("Need to implement for Task 3.2")
 
+    batch_size = out_shape[0]
+    row_size = out_shape[1]
+    col_size = out_shape[2]
+    # row of matrix A and col of matrix B
+    inner_dimension_size = a_shape[2]
 
-tensor_matrix_multiply = njit(_tensor_matrix_multiply, parallel=True)
-assert tensor_matrix_multiply is not None
+    # Parallel outer loop
+    for batch in prange(batch_size):
+        for row in prange(row_size):
+            for col in prange(col_size):
+                # Get the positions of the starting elements in the storage arrays
+                a_pos = batch * a_batch_stride + row * a_strides[1]
+                b_pos = batch * b_batch_stride + col * b_strides[2]
+                
+                # initialize the accumulator of products of elements in
+                # the row of matrix A and the column of matrix B
+                accumulator = 0.0
+                # Inner loop should have no global writes, 1 multiply.
+                for _ in range(inner_dimension_size):
+                    accumulator += a_storage[a_pos] * b_storage[b_pos]
+                    a_pos += a_strides[2]
+                    b_pos += b_strides[1]
+                
+                # Calculate output position (i,j,k) of the current element in the output array
+                out_pos = batch * out_strides[0] + row * out_strides[1] + col * out_strides[2]
+                out[out_pos] = accumulator
+
+tensor_matrix_multiply = njit(_tensor_matrix_multiply, parallel=True)   # type: ignore
