@@ -303,6 +303,7 @@ class Tensor:
 
         """
         return self._tensor.dims  # Number of dimensions in the shape
+
     @property
     def size(self) -> int:
         """Get the total number of elements in the tensor.
@@ -397,7 +398,9 @@ class Tensor:
             Tensor: A new tensor with 1 where the comparison is true, and 0 where false.
 
         """
-        return LT.apply(self._ensure_tensor(b), self)  # `b < self` is equivalent to `self > b`
+        return LT.apply(
+            self._ensure_tensor(b), self
+        )  # `b < self` is equivalent to `self > b`
 
     def __neg__(self) -> Tensor:
         """Perform element-wise negation of this tensor.
@@ -580,6 +583,6 @@ class Tensor:
         # Create a tensor for the new shape
         return View.apply(self, tensor(list(shape)))
 
-    def zero_grad_(self) -> None:   # pragma: no cover
+    def zero_grad_(self) -> None:  # pragma: no cover
         """Reset the derivative on this variable."""
         self.grad = None

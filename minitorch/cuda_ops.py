@@ -274,7 +274,7 @@ def _sum_practice(out: Storage, a: Storage, size: int) -> None:
 
     # Shared memory allocation for the current block
     cache = cuda.shared.array(BLOCK_DIM, numba.float64)
-    # Calculate the global index of the current thread 
+    # Calculate the global index of the current thread
     i = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
     # Get the thread's local position within the block
     pos = cuda.threadIdx.x
@@ -282,34 +282,35 @@ def _sum_practice(out: Storage, a: Storage, size: int) -> None:
     # TODO: Implement for Task 3.3.
     # raise NotImplementedError("Need to implement for Task 3.3")
 
-    # Load data into shared memory from storage `a`` if within the bounds, 
+    # Load data into shared memory from storage `a`` if within the bounds,
     # or paddling with the value of 0.0 to the reduction if out of the bounds
     if i < size:
-        cache[pos] = a[i] 
+        cache[pos] = a[i]
         # Synchronize the threads to make sure that everything is loaded into cache
         cuda.syncthreads()
-        # Perform the reduction within each block using a 
+        # Perform the reduction within each block using a
         # doubling stride pattern with [1, 2, 4, 8, 16]
         idx = 0
-        stride = 2 ** idx
+        stride = 2**idx
         # Each iteration halves the number of active threads
         while stride < BLOCK_DIM:
             modulus_double_stride_pos = pos % (2 * stride)
             if modulus_double_stride_pos == 0:
                 cache[pos] += cache[pos + stride]
-                # Synchronizes all threads within the block, ensuring that each 
+                # Synchronizes all threads within the block, ensuring that each
                 # step of the reduction completes before moving to the next.
                 cuda.syncthreads()
             # Stride doubles after each iteration for [2^0=1, 2^1=2, 2^2=4, 2^3=8, 2^4=16]
             idx += 1
-            stride = 2 ** idx
+            stride = 2**idx
         # Store the block result from the very first thread within each block after reduction completes
-        if pos == 0:    # the first thread in each block
+        if pos == 0:  # the first thread in each block
             # Each block writes a single result to out, where out contains the
             # partial sums from each block after kernel execution
             out[cuda.blockIdx.x] = cache[0]
     else:
         cache[pos] = 0.0
+
 
 jit_sum_practice = cuda.jit()(_sum_practice)
 
@@ -378,20 +379,20 @@ def tensor_reduce(
                 a_pos = index_to_position(out_index, a_strides)
                 # Load the relevant value from a_storage into shared memory
                 cache[pos] = a_storage[a_pos]
-            
+
                 # Synchronize threads to ensure all threads have loaded their values into cache
                 cuda.syncthreads()
-            
+
                 # Perform parallel reduction in shared memory using a binary reduction pattern [2^0=1, 2^1=2, 2^2=4, 2^3=8, ]
-                idx = 0 
-                stride = 2 ** idx
+                idx = 0
+                stride = 2**idx
                 while stride < BLOCK_DIM:
                     if pos % (stride * 2) == 0:
                         cache[pos] = fn(cache[pos], cache[pos + stride])
                         # Synchronize threads to ensure each reduction step is complete
                         cuda.syncthreads()
                     idx += 1
-                    stride = 2 ** idx
+                    stride = 2**idx
                 # Only the first thread writes the reduced result to the output array
                 if pos == 0:
                     out[o] = cache[0]
@@ -447,9 +448,9 @@ def _mm_practice(out: Storage, a: Storage, b: Storage, size: int) -> None:
         b_shared[x_pos, y_pos] = b[size * x_pos + y_pos]
         # Explicitly waiting after loading both shared memory `a` and `b` from one global reads
         cuda.syncthreads()  # Synchronize to ensure all threads finish loading
-        
-    # Perform the matrix multiplication
-    # if x_pos < size and y_pos < size:
+
+        # Perform the matrix multiplication
+        # if x_pos < size and y_pos < size:
         accumulator = 0.0
         # Iterate over shared memory to perform computations
         for i in range(size):
@@ -461,6 +462,7 @@ def _mm_practice(out: Storage, a: Storage, b: Storage, size: int) -> None:
         # Write the final result back to global memory
         out_index = size * x_pos + y_pos
         out[out_index] = accumulator
+
 
 jit_mm_practice = jit(_mm_practice)
 
@@ -545,14 +547,22 @@ def _tensor_matrix_multiply(
         shared_dim = idx * BLOCK_DIM
         # Load elements from `a` into shared memory
         shared_dim_index_a = shared_dim + pj
-        if i < a_shape[1] and shared_dim_index_a < a_shape[2]: 
-            a_index = a_batch_stride * batch + a_strides[1] * i + a_strides[2] * shared_dim_index_a
+        if i < a_shape[1] and shared_dim_index_a < a_shape[2]:
+            a_index = (
+                a_batch_stride * batch
+                + a_strides[1] * i
+                + a_strides[2] * shared_dim_index_a
+            )
             a_shared[pi, pj] = a_storage[a_index]
-        
+
         # Load elements from `b` into shared memory
         shared_dim_index_b = shared_dim + pi
-        if shared_dim_index_b < b_shape[1] and j < b_shape[2]: 
-            b_index = b_batch_stride * batch + b_strides[1] * shared_dim_index_b + b_strides[2] * j
+        if shared_dim_index_b < b_shape[1] and j < b_shape[2]:
+            b_index = (
+                b_batch_stride * batch
+                + b_strides[1] * shared_dim_index_b
+                + b_strides[2] * j
+            )
             b_shared[pi, pj] = b_storage[b_index]
 
         # Synchronize threads within the block to wait for loading all shared memory from global reads
@@ -566,14 +576,18 @@ def _tensor_matrix_multiply(
             # Check if the global index is within bounds of the shared dimension
             if shared_dim_index_global < a_shape[2]:
                 # Accumulate the product of corresponding elements from shared memory
-                accumulator += a_shared[pi, shared_dim_index_local] * b_shared[shared_dim_index_local, pj]
-            
+                accumulator += (
+                    a_shared[pi, shared_dim_index_local]
+                    * b_shared[shared_dim_index_local, pj]
+                )
+
         # Synchronize threads before the next iteration
         # cuda.syncthreads()
-    
+
     # Write the result back to global memory
     if i < out_shape[1] and j < out_shape[2]:
         ordinal_pos = out_strides[0] * batch + out_strides[1] * i + out_strides[2] * j
         out[ordinal_pos] = accumulator
+
 
 tensor_matrix_multiply = jit(_tensor_matrix_multiply)

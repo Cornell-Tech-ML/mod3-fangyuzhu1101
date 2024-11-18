@@ -30,6 +30,7 @@ Fn = TypeVar("Fn")
 
 
 def njit(fn: Fn, **kwargs: Any) -> Fn:
+    """Wraps a function with Numba's just-in-time compilation with specific options."""
     return _njit(inline="always", **kwargs)(fn)  # type: ignore
 
 
@@ -171,14 +172,14 @@ def tensor_map(
         # TODO: Implement for Task 3.1.
         # raise NotImplementedError("Need to implement for Task 3.1")
 
-        # Check both stride alignment and equal shapes to avoid explicit indexing  
+        # Check both stride alignment and equal shapes to avoid explicit indexing
         if (
             len(out_strides) == len(in_strides)
             and (out_strides == in_strides).all()
             and (out_shape == in_shape).all()
         ):
-            # Using prange for parallel loop; The main loop iterates over the output 
-            # tensor indices in parallel, utilizing prange to allow for parallel execution 
+            # Using prange for parallel loop; The main loop iterates over the output
+            # tensor indices in parallel, utilizing prange to allow for parallel execution
             for i in prange(len(out)):
                 out[i] = fn(in_storage[i])
         # else if not stride-aligned, index explicitly; run loop in parallel
@@ -199,7 +200,7 @@ def tensor_map(
                 # Apply fn to input value and store result in the output array
                 out[out_pos] = fn(in_storage[in_pos])
 
-    return njit(_map, parallel=True)    # type: ignore
+    return njit(_map, parallel=True)  # type: ignore
 
 
 def tensor_zip(
@@ -248,8 +249,8 @@ def tensor_zip(
             and (out_shape == a_shape).all()
             and (out_shape == b_shape).all()
         ):
-            # Using prange for parallel loop; The main loop iterates over the output 
-            # tensor indices in parallel, utilizing prange to allow for parallel execution 
+            # Using prange for parallel loop; The main loop iterates over the output
+            # tensor indices in parallel, utilizing prange to allow for parallel execution
             for i in prange(len(out)):
                 out[i] = fn(a_storage[i], b_storage[i])
         # else if not stride-aligned, index explicitly; run loop in parallel
@@ -262,23 +263,23 @@ def tensor_zip(
                 b_index: Index = np.empty(MAX_DIMS, np.int32)
                 # Convert an `ordinal` to an index in the `shape`
                 to_index(i, out_shape, out_index)
-                # Converts a multidimensional tensor `index` into a 
+                # Converts a multidimensional tensor `index` into a
                 # single-dimensional position in storage based on out_strides
                 out_pos = index_to_position(out_index, out_strides)
                 # Broadcast indices from out_shape to a_shape
                 broadcast_index(out_index, out_shape, a_shape, a_index)
-                # Converts a multidimensional tensor `index` into a 
+                # Converts a multidimensional tensor `index` into a
                 # single-dimensional position in storage based on a_strides
                 a_pos = index_to_position(a_index, a_strides)
                 # Broadcast indices from out_shape to b_shape
                 broadcast_index(out_index, out_shape, b_shape, b_index)
-                # Converts a multidimensional tensor `index` into a 
+                # Converts a multidimensional tensor `index` into a
                 # single-dimensional position in storage based on b_strides
                 b_pos = index_to_position(b_index, b_strides)
                 # Apply fn to input value and store result in the output array
                 out[out_pos] = fn(a_storage[a_pos], b_storage[b_pos])
 
-    return njit(_zip, parallel=True)    # type: ignore
+    return njit(_zip, parallel=True)  # type: ignore
 
 
 def tensor_reduce(
@@ -335,7 +336,7 @@ def tensor_reduce(
                 a_pos += a_step
             out[out_pos] = accumulator
 
-    return njit(_reduce, parallel=True)    # type: ignore
+    return njit(_reduce, parallel=True)  # type: ignore
 
 
 def _tensor_matrix_multiply(
@@ -411,9 +412,12 @@ def _tensor_matrix_multiply(
                     a_pos = i * a_strides[2] + row_offset_a
                     b_pos = i * b_strides[1] + col_offset_b
                     accumulator += a_storage[a_pos] * b_storage[b_pos]
-                
+
                 # Calculate output position (i,j,k) of the current element in the output array
-                out_pos = batch * out_strides[0] + row * out_strides[1] + col * out_strides[2]
+                out_pos = (
+                    batch * out_strides[0] + row * out_strides[1] + col * out_strides[2]
+                )
                 out[out_pos] = accumulator
 
-tensor_matrix_multiply = njit(_tensor_matrix_multiply, parallel=True)   # type: ignore
+
+tensor_matrix_multiply = njit(_tensor_matrix_multiply, parallel=True)  # type: ignore
