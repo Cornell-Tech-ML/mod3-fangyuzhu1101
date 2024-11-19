@@ -385,6 +385,21 @@ None
 
 # Below is my timing summary output to show my GPU run faster than CPU when size is bigger:
 ```
+Running size 64
+/usr/local/lib/python3.10/dist-packages/numba/cuda/dispatcher.py:536: NumbaPerformanceWarning: Grid size 8 will likely result in GPU under-utilization due to low occupancy.
+  warn(NumbaPerformanceWarning(msg))
+{'fast': np.float64(0.0034505526224772134), 'gpu': np.float64(0.006682793299357097)}
+Running size 128
+/usr/local/lib/python3.10/dist-packages/numba/cuda/dispatcher.py:536: NumbaPerformanceWarning: Grid size 32 will likely result in GPU under-utilization due to low occupancy.
+  warn(NumbaPerformanceWarning(msg))
+{'fast': np.float64(0.015791893005371094), 'gpu': np.float64(0.01562841733296712)}
+Running size 256
+{'fast': np.float64(0.09758281707763672), 'gpu': np.float64(0.06906938552856445)}
+Running size 512
+{'fast': np.float64(0.985863447189331), 'gpu': np.float64(0.21808258692423502)}
+Running size 1024
+{'fast': np.float64(7.924315452575684), 'gpu': np.float64(1.0107994079589844)}
+
 Timing summary
 Size: 64
     fast: 0.00345
