@@ -443,6 +443,8 @@ def _mm_practice(out: Storage, a: Storage, b: Storage, size: int) -> None:
     b_shared = cuda.shared.array((BLOCK_DIM, BLOCK_DIM), numba.float64)
 
     # Load data into shared memory if within bounds
+    # Given a storage out and two storage a and b; both are shape [size, size] with strides [size, 1].
+    # Size is always < 32.
     if x_pos < size and y_pos < size:
         a_shared[x_pos, y_pos] = a[size * x_pos + y_pos]
         b_shared[x_pos, y_pos] = b[size * x_pos + y_pos]
