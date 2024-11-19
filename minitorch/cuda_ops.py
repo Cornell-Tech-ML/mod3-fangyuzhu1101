@@ -556,8 +556,8 @@ def _tensor_matrix_multiply(
                 + a_strides[2] * shared_dim_index_a
             )
             a_shared[pi, pj] = a_storage[a_index]
-        else: 
-            a_shared[pi, pj] = 0.0  # padded with zero else
+        # else:
+        #     a_shared[pi, pj] = 0.0  # padded with zero else
 
         # Load elements from `b` into shared memory
         shared_dim_index_b = shared_dim + pi
@@ -568,8 +568,8 @@ def _tensor_matrix_multiply(
                 + b_strides[2] * j
             )
             b_shared[pi, pj] = b_storage[b_index]
-        else: 
-            b_shared[pi, pj] = 0.0  # padded with zero else
+        # else:
+        #     b_shared[pi, pj] = 0.0  # padded with zero else
 
         # Synchronize threads within the block to wait for loading all shared memory from global reads
         cuda.syncthreads()
@@ -594,5 +594,6 @@ def _tensor_matrix_multiply(
     if i < out_shape[1] and j < out_shape[2]:
         ordinal_pos = out_strides[0] * batch + out_strides[1] * i + out_strides[2] * j
         out[ordinal_pos] = accumulator
+
 
 tensor_matrix_multiply = jit(_tensor_matrix_multiply)
